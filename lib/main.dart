@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'translator.dart';
 
@@ -31,6 +32,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
   String _output = '';
   bool _loading = true; // بيتحمّل الموديل؟
   bool _translating = false; // بيترجم دلوقتي؟
+  static const _channel = MethodChannel('franco_translator/process_text');
 
   @override
   void initState() {
@@ -45,6 +47,22 @@ class _TranslateScreenState extends State<TranslateScreen> {
       _translator = t;
       _loading = false;
     });
+
+    // بعد ما الموديل يجهز: نشوف التطبيق اتفتح من "ترجم" ومعاه نص؟
+    await _checkForSharedText();
+  }
+
+  /// بتسأل الـ native: فيه نص مُختار مبعوت لنا؟ لو آه، تحطّه وتترجمه.
+  Future<void> _checkForSharedText() async {
+    try {
+      final sharedText = await _channel.invokeMethod<String>('getSharedText');
+      if (sharedText != null && sharedText.trim().isNotEmpty) {
+        _controller.text = sharedText;
+        await _translate(); // نترجمه على طول
+      }
+    } catch (e) {
+      // لو حصل أي مشكلة في الجسر، نتجاهلها بهدوء (التطبيق يفتح عادي)
+    }
   }
 
   /// نترجم النص اللي في الخانة
