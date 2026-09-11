@@ -1,0 +1,1 @@
+{"sos": 1, "eos": 2, "tgt_pad": 0, "src_pad": 0, "max_steps": 200, "direction": "arabic_to_franco"}

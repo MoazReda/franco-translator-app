@@ -1,5 +1,5 @@
-import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'translator.dart';
 
 void main() {
@@ -27,99 +27,140 @@ class TranslateScreen extends StatefulWidget {
 }
 
 class _TranslateScreenState extends State<TranslateScreen> {
-  final _controller = TextEditingController();
-  Translator? _translator; // الموديل (بيتحمّل مرة واحدة)
-  String _output = '';
-  bool _loading = true; // بيتحمّل الموديل؟
-  bool _translating = false; // بيترجم دلوقتي؟
   static const _channel = MethodChannel('franco_translator/process_text');
+
+  final _controller = TextEditingController();
+  Translator? _f2a; // franco -> arabic (أمامي)
+  Translator? _a2f; // arabic -> franco (عكسي)
+  bool _isFrancoToArabic = true; // الاتجاه الحالي
+
+  String _output = '';
+  bool _loading = true;
+  bool _translating = false;
 
   @override
   void initState() {
     super.initState();
-    _initTranslator();
+    _init();
   }
 
-  /// نحمّل الموديل مرة واحدة عند فتح الشاشة
-  Future<void> _initTranslator() async {
-    final t = await Translator.load();
+  /// نحمّل الاتجاهين مرة واحدة عند البداية
+  Future<void> _init() async {
+    // الأمامي: franco -> arabic
+    final f2a = await Translator.load(
+      modelAsset: 'assets/franco_ar.onnx',
+      srcVocabAsset: 'assets/franco_vocab.json',
+      tgtVocabAsset: 'assets/arabic_vocab.json',
+    );
+    // العكسي: arabic -> franco (لاحظ normalizeAlef للعربي كمدخل)
+    final a2f = await Translator.load(
+      modelAsset: 'assets/ar_franco.onnx',
+      srcVocabAsset: 'assets/rev_source_arabic_vocab.json',
+      tgtVocabAsset: 'assets/rev_target_franco_vocab.json',
+      normalizeAlef: true,
+    );
+
     setState(() {
-      _translator = t;
+      _f2a = f2a;
+      _a2f = a2f;
       _loading = false;
     });
 
-    // بعد ما الموديل يجهز: نشوف التطبيق اتفتح من "ترجم" ومعاه نص؟
     await _checkForSharedText();
   }
 
-  /// بتسأل الـ native: فيه نص مُختار مبعوت لنا؟ لو آه، تحطّه وتترجمه.
-  Future<void> _checkForSharedText() async {
-    try {
-      final sharedText = await _channel.invokeMethod<String>('getSharedText');
-      if (sharedText != null && sharedText.trim().isNotEmpty) {
-        _controller.text = sharedText;
-        await _translate(); // نترجمه على طول
-      }
-    } catch (e) {
-      // لو حصل أي مشكلة في الجسر، نتجاهلها بهدوء (التطبيق يفتح عادي)
-    }
+  /// المترجم الحالي حسب الاتجاه المختار
+  Translator? get _current => _isFrancoToArabic ? _f2a : _a2f;
+
+  /// نقلب الاتجاه ونمسح النتيجة القديمة
+  void _toggleDirection() {
+    setState(() {
+      _isFrancoToArabic = !_isFrancoToArabic;
+      _output = '';
+    });
   }
 
-  /// نترجم النص اللي في الخانة
-    Future<void> _translate() async {
+  Future<void> _translate() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _translator == null) return;
+    if (text.isEmpty || _current == null) return;
 
     setState(() {
       _translating = true;
       _output = '';
     });
     try {
-      final result = await _translator!.translate(text);
+      final result = await _current!.translate(text);
       setState(() => _output = result);
     } catch (e) {
-      setState(() => _output = 'خطأ: $e'); // أي مشكلة هتظهر هنا بدل ما تعلّق
+      setState(() => _output = 'خطأ: $e');
     } finally {
-      setState(() => _translating = false); // الزرار يرجع "ترجم" دايماً
+      setState(() => _translating = false);
+    }
+  }
+
+  /// نص جاي من تطبيق تاني (Process Text): نكتشف اتجاهه ونترجمه
+  Future<void> _checkForSharedText() async {
+    try {
+      final sharedText = await _channel.invokeMethod<String>('getSharedText');
+      if (sharedText != null && sharedText.trim().isNotEmpty) {
+        // لو فيه حروف عربي → عربي (عكسي)، غير كده → franco (أمامي)
+        final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(sharedText);
+        setState(() => _isFrancoToArabic = !hasArabic);
+        _controller.text = sharedText;
+        await _translate();
+      }
+    } catch (e) {
+      // لو مفيش نص مبعوت، نتجاهل بهدوء
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // عناوين حسب الاتجاه
+    final fromLabel = _isFrancoToArabic ? 'Franco' : 'عربي';
+    final toLabel = _isFrancoToArabic ? 'عربي' : 'Franco';
+    final hint = _isFrancoToArabic ? 'اكتب franco' : 'اكتب عربي';
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Franco ➜ عربي')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: _loading
-            // لسه بنحمّل الموديل
-            ? const Center(child: Text('جاري تحميل الموديل...'))
-            : Column(
+      appBar: AppBar(title: Text('$fromLabel ➜ $toLabel')),
+      body: _loading
+          ? const Center(child: Text('جاري تحميل الموديلات...'))
+          : Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // خانة الكتابة
+                  // زرار تبديل الاتجاه
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _toggleDirection,
+                      icon: const Icon(Icons.swap_horiz),
+                      label: Text('$fromLabel ➜ $toLabel'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _controller,
-                    decoration: const InputDecoration(
-                      labelText: 'اكتب franco',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: hint,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // زرار الترجمة
                   ElevatedButton(
                     onPressed: _translating ? null : _translate,
                     child: Text(_translating ? 'بيترجم...' : 'ترجم'),
                   ),
                   const SizedBox(height: 24),
-                  // النتيجة
                   Text(
                     _output,
                     style: const TextStyle(fontSize: 24),
-                    textDirection: TextDirection.rtl,
+                    textDirection:
+                        _isFrancoToArabic ? TextDirection.rtl : TextDirection.ltr,
                   ),
                 ],
               ),
-      ),
+            ),
     );
   }
 }
