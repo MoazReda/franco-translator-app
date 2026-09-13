@@ -24,8 +24,8 @@ class Vocab {
 
   int get length => itos.length;
 
-  /// بتحوّل نص لقائمة أرقام، ملفوفة بـ <sos> و <eos>.
-  /// أي حرف مش موجود ياخد رقم <unk>.
+  /// بتحوّل نص لقائمة أرقام، ملفوفة بـ `<sos>` و `<eos>`.
+  /// أي حرف مش موجود ياخد رقم `<unk>`.
   List<int> encode(String text) {
     final ids = <int>[];
     ids.add(sosId);

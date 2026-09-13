@@ -33,29 +33,29 @@ class Translator {
     return Translator._(session, srcVocab, tgtVocab, normalizeAlef);
   }
 
-  /// بتترجم جملة واحدة.
+      /// بتترجم جملة كاملة (بتبعتها للموديل مباشرة).
   Future<String> translate(String text) async {
+    return _translateChunk(text);
+  }
+
+  /// بتترجم مقطع franco واحد بالموديل (الجزء اللي كان في translate قبل كده).
+  Future<String> _translateChunk(String text) async {
     var input = text.toLowerCase();
     if (_normalizeAlef) input = _normalizeAlefChars(input);
 
-    // 1) نص -> أرقام (بقاموس المدخل)
     final ids = _srcVocab.encode(input);
 
-    // 2) tensor بشكل [1, L] كـ int64
     final inputTensor = await OrtValue.fromList(
       Int64List.fromList(ids),
       [1, ids.length],
     );
 
-    // 3) تشغيل الموديل (input اسمه "src")
     final outputs = await _session.run({'src': inputTensor});
 
-    // 4) الـ output ("tokens") -> list أرقام
     final outTensor = outputs['tokens']!;
     final flat = await outTensor.asFlattenedList();
     final outIds = flat.map((e) => (e as num).toInt()).toList();
 
-    // 5) أرقام -> نص (بقاموس المخرج)
     return _tgtVocab.decode(outIds);
   }
 
