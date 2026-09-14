@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'translator.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,8 +13,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Franco Translator',
-      theme: ThemeData(primarySwatch: Colors.teal),
+      title: 'Franco',
+      debugShowCheckedModeBanner: false, // نشيل شريط DEBUG
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system, // يتبع وضع النظام تلقائياً
       home: const TranslateScreen(),
     );
   }
