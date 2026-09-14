@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'translator.dart';
 import 'theme/app_theme.dart';
+import 'theme/app_colors.dart';
+import 'theme/app_spacing.dart';
+import 'widgets/text_panel.dart';
+import 'translator.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,10 +17,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Franco',
-      debugShowCheckedModeBanner: false, // نشيل شريط DEBUG
+      debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system, // يتبع وضع النظام تلقائياً
+      themeMode: ThemeMode.system,
       home: const TranslateScreen(),
     );
   }
@@ -34,9 +37,9 @@ class _TranslateScreenState extends State<TranslateScreen> {
   static const _channel = MethodChannel('franco_translator/process_text');
 
   final _controller = TextEditingController();
-  Translator? _f2a; // franco -> arabic (أمامي)
-  Translator? _a2f; // arabic -> franco (عكسي)
-  bool _isFrancoToArabic = true; // الاتجاه الحالي
+  Translator? _f2a; // franco -> arabic
+  Translator? _a2f; // arabic -> franco
+  bool _isFrancoToArabic = true;
 
   String _output = '';
   bool _loading = true;
@@ -48,35 +51,28 @@ class _TranslateScreenState extends State<TranslateScreen> {
     _init();
   }
 
-  /// نحمّل الاتجاهين مرة واحدة عند البداية
   Future<void> _init() async {
-    // الأمامي: franco -> arabic
     final f2a = await Translator.load(
       modelAsset: 'assets/franco_ar.onnx',
       srcVocabAsset: 'assets/franco_vocab.json',
       tgtVocabAsset: 'assets/arabic_vocab.json',
     );
-    // العكسي: arabic -> franco (لاحظ normalizeAlef للعربي كمدخل)
     final a2f = await Translator.load(
       modelAsset: 'assets/ar_franco.onnx',
       srcVocabAsset: 'assets/rev_source_arabic_vocab.json',
       tgtVocabAsset: 'assets/rev_target_franco_vocab.json',
       normalizeAlef: true,
     );
-
     setState(() {
       _f2a = f2a;
       _a2f = a2f;
       _loading = false;
     });
-
     await _checkForSharedText();
   }
 
-  /// المترجم الحالي حسب الاتجاه المختار
   Translator? get _current => _isFrancoToArabic ? _f2a : _a2f;
 
-  /// نقلب الاتجاه ونمسح النتيجة القديمة
   void _toggleDirection() {
     setState(() {
       _isFrancoToArabic = !_isFrancoToArabic;
@@ -87,7 +83,6 @@ class _TranslateScreenState extends State<TranslateScreen> {
   Future<void> _translate() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _current == null) return;
-
     setState(() {
       _translating = true;
       _output = '';
@@ -102,65 +97,137 @@ class _TranslateScreenState extends State<TranslateScreen> {
     }
   }
 
-  /// نص جاي من تطبيق تاني (Process Text): نكتشف اتجاهه ونترجمه
   Future<void> _checkForSharedText() async {
     try {
       final sharedText = await _channel.invokeMethod<String>('getSharedText');
       if (sharedText != null && sharedText.trim().isNotEmpty) {
-        // لو فيه حروف عربي → عربي (عكسي)، غير كده → franco (أمامي)
         final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(sharedText);
         setState(() => _isFrancoToArabic = !hasArabic);
         _controller.text = sharedText;
         await _translate();
       }
-    } catch (e) {
-      // لو مفيش نص مبعوت، نتجاهل بهدوء
-    }
+    } catch (_) {}
+  }
+
+  void _copyOutput() {
+    if (_output.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: _output));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم نسخ الترجمة'), duration: Duration(seconds: 1)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // عناوين حسب الاتجاه
-    final fromLabel = _isFrancoToArabic ? 'Franco' : 'عربي';
-    final toLabel = _isFrancoToArabic ? 'عربي' : 'Franco';
-    final hint = _isFrancoToArabic ? 'اكتب franco' : 'اكتب عربي';
+    final c = AppColors.of(Theme.of(context).brightness);
+    final srcLabel = _isFrancoToArabic ? 'اكتب franco' : 'اكتب عربي';
+    final outIsArabic = _isFrancoToArabic; // الناتج عربي في الاتجاه الأمامي
 
     return Scaffold(
-      appBar: AppBar(title: Text('$fromLabel ➜ $toLabel')),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Text(
+              'Franco',
+              style: TextStyle(
+                fontSize: AppFontSize.heading,
+                fontWeight: FontWeight.w700,
+                color: c.textPrimary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Container(width: 8, height: 8, decoration: const BoxDecoration(
+              color: AppColors.brandCyan, shape: BoxShape.circle)),
+          ],
+        ),
+      ),
       body: _loading
-          ? const Center(child: Text('جاري تحميل الموديلات...'))
-          : Padding(
-              padding: const EdgeInsets.all(20),
+          ? const Center(child: CircularProgressIndicator(color: AppColors.brandCyan))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // زرار تبديل الاتجاه
+                  // شريط تبديل الاتجاه (كبسولة)
                   Center(
-                    child: TextButton.icon(
-                      onPressed: _toggleDirection,
-                      icon: const Icon(Icons.swap_horiz),
-                      label: Text('$fromLabel ➜ $toLabel'),
+                    child: GestureDetector(
+                      onTap: _toggleDirection,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: c.surface,
+                          borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+                          border: Border.all(color: c.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_isFrancoToArabic ? 'Franco' : 'عربي',
+                                style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.w600)),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                              child: Icon(Icons.swap_horiz, size: 18, color: AppColors.brandCyan),
+                            ),
+                            Text(_isFrancoToArabic ? 'عربي' : 'Franco',
+                                style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _controller,
-                    decoration: InputDecoration(
-                      labelText: hint,
-                      border: const OutlineInputBorder(),
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // بطاقة الإدخال
+                  TextPanel(
+                    label: srcLabel,
+                    child: TextField(
+                      controller: _controller,
+                      maxLines: 3,
+                      minLines: 1,
+                      style: TextStyle(fontSize: AppFontSize.input, color: c.textPrimary),
+                      textDirection: _isFrancoToArabic ? TextDirection.ltr : TextDirection.rtl,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                        contentPadding: EdgeInsets.zero,
+                        hintText: '...',
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // زرار ترجم
                   ElevatedButton(
                     onPressed: _translating ? null : _translate,
                     child: Text(_translating ? 'بيترجم...' : 'ترجم'),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    _output,
-                    style: const TextStyle(fontSize: 24),
-                    textDirection:
-                        _isFrancoToArabic ? TextDirection.rtl : TextDirection.ltr,
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // بطاقة الناتج
+                  TextPanel(
+                    label: 'الترجمة',
+                    trailing: _output.isEmpty
+                        ? null
+                        : InkWell(
+                            onTap: _copyOutput,
+                            child: const Icon(Icons.copy_rounded,
+                                size: 18, color: AppColors.brandCyan),
+                          ),
+                    child: _output.isEmpty
+                        ? Text('الترجمة هتظهر هنا',
+                            style: TextStyle(fontSize: AppFontSize.body, color: c.textSecondary))
+                        : Text(
+                            _output,
+                            style: TextStyle(
+                                fontSize: AppFontSize.output,
+                                color: c.textPrimary,
+                                height: 1.5),
+                            textDirection:
+                                outIsArabic ? TextDirection.rtl : TextDirection.ltr,
+                          ),
                   ),
                 ],
               ),
