@@ -48,6 +48,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
   @override
   void initState() {
     super.initState();
+    _controller.addListener(() => setState(() {})); // يحدّث الشاشة مع كل حرف
     _init();
   }
 
@@ -120,7 +121,11 @@ class _TranslateScreenState extends State<TranslateScreen> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(Theme.of(context).brightness);
-    final srcLabel = _isFrancoToArabic ? 'اكتب franco' : 'اكتب عربي';
+    // الليبلات تتكلم بلغة الاتجاه الحالي:
+    // franco->عربي: بالفرانكو | عربي->franco: بالعربي
+    final srcLabel = _isFrancoToArabic ? 'ektb franco' : 'اكتب عربي';
+    final buttonLabel = _isFrancoToArabic ? 'targem' : 'ترجم';
+    final outputLabel = _isFrancoToArabic ? 'eltargama' : 'الترجمة';
     final outIsArabic = _isFrancoToArabic; // الناتج عربي في الاتجاه الأمامي
 
     return Scaffold(
@@ -181,6 +186,18 @@ class _TranslateScreenState extends State<TranslateScreen> {
                   // بطاقة الإدخال
                   TextPanel(
                     label: srcLabel,
+                    trailing: _controller.text.isEmpty
+                        ? null
+                        : InkWell(
+                            onTap: () {
+                              _controller.clear();
+                              setState(() => _output = '');
+                            },
+                            child: Icon(Icons.close_rounded,
+                                size: 18,
+                                color: AppColors.of(Theme.of(context).brightness)
+                                    .textSecondary),
+                          ),
                     child: TextField(
                       controller: _controller,
                       maxLines: 3,
@@ -199,16 +216,17 @@ class _TranslateScreenState extends State<TranslateScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // زرار ترجم
                   ElevatedButton(
-                    onPressed: _translating ? null : _translate,
-                    child: Text(_translating ? 'بيترجم...' : 'ترجم'),
+                    onPressed: (_translating || _controller.text.trim().isEmpty)
+                        ? null
+                        : _translate,
+                    child: Text(_translating ? '...' : buttonLabel),
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
                   // بطاقة الناتج
                   TextPanel(
-                    label: 'الترجمة',
+                    label: outputLabel,
                     trailing: _output.isEmpty
                         ? null
                         : InkWell(
@@ -217,7 +235,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
                                 size: 18, color: AppColors.brandCyan),
                           ),
                     child: _output.isEmpty
-                        ? Text('الترجمة هتظهر هنا',
+                        ? Text(_isFrancoToArabic ? 'eltargama hatzhar hena' : 'الترجمة هتظهر هنا',
                             style: TextStyle(fontSize: AppFontSize.body, color: c.textSecondary))
                         : Text(
                             _output,

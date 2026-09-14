@@ -15,6 +15,7 @@ class AppTheme {
 
     return ThemeData(
       brightness: brightness,
+      fontFamily: 'Cairo', // خط Cairo لكل التطبيق
       scaffoldBackgroundColor: c.background,
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.brandCyan,
