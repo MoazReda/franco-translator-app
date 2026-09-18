@@ -25,11 +25,14 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    // بتقرا النص المُختار من الـ Intent (لو التطبيق اتفتح من "ترجم")
     private fun getProcessTextFromIntent(): String? {
-        // بنتأكد إن ده intent بتاع PROCESS_TEXT
+        // حالة 1: جاي من "ترجم" في قايمة تحديد النص
         if (intent?.action == Intent.ACTION_PROCESS_TEXT) {
             return intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+        }
+        // حالة 2: جاي من زرار "Share" (زي واتساب)
+        if (intent?.action == Intent.ACTION_SEND && intent?.type == "text/plain") {
+            return intent.getStringExtra(Intent.EXTRA_TEXT)
         }
         return null
     }

@@ -5,13 +5,47 @@ import 'theme/app_colors.dart';
 import 'theme/app_spacing.dart';
 import 'widgets/text_panel.dart';
 import 'translator.dart';
+import 'settings_store.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+
+    /// بتبدّل الـ theme من أي مكان في التطبيق.
+  static void toggleTheme(BuildContext context) {
+    context.findAncestorStateOfType<_MyAppState>()?.toggleTheme();
+  }
+}
+
+class _MyAppState extends State<MyApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  /// نقرا الـ theme المحفوظ عند بداية التطبيق
+  Future<void> _loadTheme() async {
+    final saved = await SettingsStore.loadThemeMode();
+    setState(() => _themeMode = saved);
+  }
+
+  /// نبدّل بين light و dark ونحفظ الاختيار
+  void toggleTheme() {
+    setState(() {
+      _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    });
+    SettingsStore.saveThemeMode(_themeMode); // نحفظه على القرص
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +54,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: _themeMode, // بقى متغيّر بدل الثابت
       home: const TranslateScreen(),
     );
   }
@@ -123,13 +157,13 @@ class _TranslateScreenState extends State<TranslateScreen> {
     final c = AppColors.of(Theme.of(context).brightness);
     // الليبلات تتكلم بلغة الاتجاه الحالي:
     // franco->عربي: بالفرانكو | عربي->franco: بالعربي
-    final srcLabel = _isFrancoToArabic ? 'ektb franco' : 'اكتب عربي';
-    final buttonLabel = _isFrancoToArabic ? 'targem' : 'ترجم';
-    final outputLabel = _isFrancoToArabic ? 'eltargama' : 'الترجمة';
+    final srcLabel = _isFrancoToArabic ? 'اكتب فرانكو' : 'ektb 3arabi';
+    final buttonLabel = _isFrancoToArabic ? 'ترجم' : 'targem';
+    final outputLabel = _isFrancoToArabic ? 'الترجمة' : 'eltargama';
     final outIsArabic = _isFrancoToArabic; // الناتج عربي في الاتجاه الأمامي
 
     return Scaffold(
-      appBar: AppBar(
+            appBar: AppBar(
         title: Row(
           children: [
             Text(
@@ -145,6 +179,19 @@ class _TranslateScreenState extends State<TranslateScreen> {
               color: AppColors.brandCyan, shape: BoxShape.circle)),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Change mode',
+            icon: Icon(
+              // شمس في الغامق (يبدّل لفاتح)، قمر في الفاتح (يبدّل لغامق)
+              Theme.of(context).brightness == Brightness.dark
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+              color: c.textPrimary,
+            ),
+            onPressed: () => MyApp.toggleTheme(context),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.brandCyan))
@@ -200,8 +247,8 @@ class _TranslateScreenState extends State<TranslateScreen> {
                           ),
                     child: TextField(
                       controller: _controller,
-                      maxLines: 3,
-                      minLines: 1,
+                      maxLines: 5,
+                      minLines: 3,
                       style: TextStyle(fontSize: AppFontSize.input, color: c.textPrimary),
                       textDirection: _isFrancoToArabic ? TextDirection.ltr : TextDirection.rtl,
                       decoration: const InputDecoration(
@@ -235,16 +282,23 @@ class _TranslateScreenState extends State<TranslateScreen> {
                                 size: 18, color: AppColors.brandCyan),
                           ),
                     child: _output.isEmpty
-                        ? Text(_isFrancoToArabic ? 'eltargama hatzhar hena' : 'الترجمة هتظهر هنا',
+                        ? Text(_isFrancoToArabic ? 'الترجمة هتظهر هنا' : 'eltargama hatzhar hena',
                             style: TextStyle(fontSize: AppFontSize.body, color: c.textSecondary))
-                        : Text(
-                            _output,
-                            style: TextStyle(
-                                fontSize: AppFontSize.output,
-                                color: c.textPrimary,
-                                height: 1.5),
-                            textDirection:
-                                outIsArabic ? TextDirection.rtl : TextDirection.ltr,
+                                                : Container(
+                            constraints: const BoxConstraints(minHeight: 80),
+                            alignment: outIsArabic
+                                ? Alignment.topRight
+                                : Alignment.topLeft,
+                            child: Text(
+                              _output,
+                              style: TextStyle(
+                                  fontSize: AppFontSize.output,
+                                  color: c.textPrimary,
+                                  height: 1.5),
+                              textDirection: outIsArabic
+                                  ? TextDirection.rtl
+                                  : TextDirection.ltr,
+                            ),
                           ),
                   ),
                 ],
