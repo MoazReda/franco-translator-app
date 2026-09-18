@@ -5,6 +5,9 @@ import 'theme/app_colors.dart';
 import 'theme/app_spacing.dart';
 import 'widgets/text_panel.dart';
 import 'translator.dart';
+import 'history_entry.dart';
+import 'history_store.dart';
+import 'history_screen.dart';
 import 'settings_store.dart';
 
 void main() {
@@ -125,6 +128,13 @@ class _TranslateScreenState extends State<TranslateScreen> {
     try {
       final result = await _current!.translate(text);
       setState(() => _output = result);
+      // نحفظ الترجمة في السجل
+      await HistoryStore.add(HistoryEntry(
+        source: text,
+        result: result,
+        isFrancoToArabic: _isFrancoToArabic,
+        time: DateTime.now(),
+      ));
     } catch (e) {
       setState(() => _output = 'خطأ: $e');
     } finally {
@@ -179,11 +189,20 @@ class _TranslateScreenState extends State<TranslateScreen> {
               color: AppColors.brandCyan, shape: BoxShape.circle)),
           ],
         ),
-        actions: [
+                actions: [
           IconButton(
-            tooltip: 'Change mode',
+            tooltip: 'السجل',
+            icon: Icon(Icons.history_rounded, color: c.textPrimary),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryScreen()),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'تبديل الوضع',
             icon: Icon(
-              // شمس في الغامق (يبدّل لفاتح)، قمر في الفاتح (يبدّل لغامق)
               Theme.of(context).brightness == Brightness.dark
                   ? Icons.light_mode_rounded
                   : Icons.dark_mode_rounded,
