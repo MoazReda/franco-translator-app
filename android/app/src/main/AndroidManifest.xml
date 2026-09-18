@@ -3,6 +3,9 @@
         android:label="Franco"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-9699523022325558~4413147980"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

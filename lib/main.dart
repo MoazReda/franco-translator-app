@@ -9,9 +9,13 @@ import 'history_entry.dart';
 import 'history_store.dart';
 import 'history_screen.dart';
 import 'settings_store.dart';
+import 'widgets/banner_ad_widget.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized(); // لازم قبل أي تهيئة
+  MobileAds.instance.initialize(); // نشغّل نظام إعلانات جوجل
   runApp(const MyApp());
 }
 
@@ -373,6 +377,9 @@ class _TranslateScreenState extends State<TranslateScreen> {
                 ],
               ),
             ),
+      bottomNavigationBar: const SafeArea(
+        child: BannerAdWidget(),
+      ),
     );
   }
 }
