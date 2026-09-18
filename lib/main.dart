@@ -9,6 +9,7 @@ import 'history_entry.dart';
 import 'history_store.dart';
 import 'history_screen.dart';
 import 'settings_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -95,18 +96,39 @@ class _TranslateScreenState extends State<TranslateScreen> {
       srcVocabAsset: 'assets/franco_vocab.json',
       tgtVocabAsset: 'assets/arabic_vocab.json',
     );
+
     final a2f = await Translator.load(
       modelAsset: 'assets/ar_franco.onnx',
       srcVocabAsset: 'assets/rev_source_arabic_vocab.json',
       tgtVocabAsset: 'assets/rev_target_franco_vocab.json',
       normalizeAlef: true,
     );
+
     setState(() {
       _f2a = f2a;
       _a2f = a2f;
       _loading = false;
     });
+
     await _checkForSharedText();
+    await _loadLastTranslation();
+  }
+
+  /// نقرا آخر ترجمة محفوظة ونعرضها (لو مفيش نص جاي من Share).
+  Future<void> _loadLastTranslation() async {
+    if (_controller.text.isNotEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final lastSource = prefs.getString('last_source');
+    final lastResult = prefs.getString('last_result');
+
+    if (lastSource != null && lastResult != null) {
+      setState(() {
+        _controller.text = lastSource;
+        _output = lastResult;
+        _isFrancoToArabic = prefs.getBool('last_dir') ?? true;
+      });
+    }
   }
 
   Translator? get _current => _isFrancoToArabic ? _f2a : _a2f;
@@ -117,10 +139,21 @@ class _TranslateScreenState extends State<TranslateScreen> {
       _output = '';
     });
   }
+    /// بياخد الترجمة الحالية، يقلب الاتجاه، ويحطها في الإدخال (للترجمة العكسية).
+  void _swapToInput() {
+    if (_output.isEmpty || _output.startsWith('خطأ')) return;
+    setState(() {
+      _controller.text = _output; // الترجمة تبقى الإدخال الجديد
+      _isFrancoToArabic = !_isFrancoToArabic; // نقلب الاتجاه
+      _output = '';
+    });
+    HapticFeedback.lightImpact();
+  }
 
   Future<void> _translate() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _current == null) return;
+    HapticFeedback.lightImpact(); // اهتزاز خفيف عند الترجمة
     setState(() {
       _translating = true;
       _output = '';
@@ -135,6 +168,11 @@ class _TranslateScreenState extends State<TranslateScreen> {
         isFrancoToArabic: _isFrancoToArabic,
         time: DateTime.now(),
       ));
+      // نحفظ آخر ترجمة عشان تفضل ظاهرة لما نفتح التطبيق تاني
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_source', text);
+      await prefs.setString('last_result', result);
+      await prefs.setBool('last_dir', _isFrancoToArabic);
     } catch (e) {
       setState(() => _output = 'خطأ: $e');
     } finally {
@@ -157,6 +195,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
   void _copyOutput() {
     if (_output.isEmpty) return;
     Clipboard.setData(ClipboardData(text: _output));
+    HapticFeedback.selectionClick(); // اهتزاز خفيف عند النسخ
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('تم نسخ الترجمة'), duration: Duration(seconds: 1)),
     );
@@ -295,10 +334,21 @@ class _TranslateScreenState extends State<TranslateScreen> {
                     label: outputLabel,
                     trailing: _output.isEmpty
                         ? null
-                        : InkWell(
-                            onTap: _copyOutput,
-                            child: const Icon(Icons.copy_rounded,
-                                size: 18, color: AppColors.brandCyan),
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              InkWell(
+                                onTap: _swapToInput,
+                                child: const Icon(Icons.swap_vert_rounded,
+                                    size: 18, color: AppColors.brandCyan),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              InkWell(
+                                onTap: _copyOutput,
+                                child: const Icon(Icons.copy_rounded,
+                                    size: 18, color: AppColors.brandCyan),
+                              ),
+                            ],
                           ),
                     child: _output.isEmpty
                         ? Text(_isFrancoToArabic ? 'الترجمة هتظهر هنا' : 'eltargama hatzhar hena',
