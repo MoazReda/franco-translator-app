@@ -18,7 +18,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   /// ⚠️ Test ad unit ID من جوجل — للتطوير بس.
   /// قبل النشر نغيّره للـ ID الحقيقي: ca-app-pub-9699523022325558/9675503941
   static final String _adUnitId = Platform.isAndroid
-      ? 'ca-app-pub-3940256099942544/9214589741' // Android test banner
+      ? 'ca-app-pub-9699523022325558/9675503941' // Android test banner
       : 'ca-app-pub-3940256099942544/2435281174'; // iOS test banner
 
   @override
